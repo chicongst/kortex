@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart":       [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/ensure-viewer.sh", "async": true }, { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "UserPromptSubmit":   [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "PreToolUse":         [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "PostToolUse":        [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "PostToolUseFailure": [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "SubagentStart":      [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "SubagentStop":       [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "Stop":               [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "SessionEnd":         [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ]
+  }
+}

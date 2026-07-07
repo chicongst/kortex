@@ -1,0 +1,18 @@
+{
+  "name": "activity-tracker",
+  "displayName": "Activity Tracker",
+  "version": "0.1.0",
+  "description": "Live flow-graph viewer for Claude Code. KORTEX animates each prompt as a thread that branches into tools and parallel subagents in real time — with zero-config token, cost, and context-window tracking read straight from the session transcript. Local-only, zero dependencies.",
+  "author": { "name": "Cong" },
+  "hooks": "./hooks/hooks.json",
+  "skills": ["./skills/"],
+  "commands": ["./commands/"],
+  "userConfig": {
+    "endpoint": {
+      "type": "string",
+      "title": "Viewer endpoint",
+      "description": "HTTP URL the tracker POSTs each hook event to. Must match the port the viewer server listens on.",
+      "default": "http://127.0.0.1:39000/event"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Convenience launcher for the viewer server.
+# Usage: activity-tracker-viewer [--port=9000]
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec node "$here/../viewer/server.js" "$@"

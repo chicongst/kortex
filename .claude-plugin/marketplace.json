@@ -1,0 +1,12 @@
+{
+  "name": "kortex",
+  "description": "KORTEX — a live flow-graph viewer for Claude Code: watch prompts, tools, and parallel subagents animate in real time with zero-config token, cost, and context tracking.",
+  "owner": { "name": "Cong" },
+  "plugins": [
+    {
+      "name": "activity-tracker",
+      "source": "./",
+      "description": "Live flow-graph viewer for Claude Code — watch prompts, tools, and parallel subagents animate in real time, with zero-config token, cost, and context-window tracking from the session transcript. Local, zero-dependency."
+    }
+  ]
+}
