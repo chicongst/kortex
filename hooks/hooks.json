@@ -1,6 +1,6 @@
 {
   "hooks": {
-    "SessionStart":       [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/ensure-viewer.sh", "async": true }, { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
+    "SessionStart":       [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/ensure-viewer.sh", "async": true }, { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/welcome.sh" }, { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
     "UserPromptSubmit":   [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
     "PreToolUse":         [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],
     "PostToolUse":        [ { "matcher": "", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/emit.sh", "async": true } ] } ],

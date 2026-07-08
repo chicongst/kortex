@@ -6,7 +6,7 @@
     {
       "name": "activity-tracker",
       "source": "./",
-      "description": "Live flow-graph viewer for Claude Code — watch prompts, tools, and parallel subagents animate in real time, with zero-config token, cost, and context-window tracking from the session transcript. Local, zero-dependency."
+      "description": "Live flow-graph viewer for Claude Code — watch prompts, tools, and parallel subagents animate in real time, with zero-config token, cost, and context-window tracking from the session transcript. Local, zero-dependency. After installing, restart Claude Code, then open http://127.0.0.1:39000/flow.html."
     }
   ]
 }
