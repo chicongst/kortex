@@ -89,6 +89,23 @@ Both write a single sentinel file (`~/.claude/activity-tracker.off`). While it's
 present, the hooks send nothing and the viewer won't autostart on the next
 session — zero overhead until you flip it back on.
 
+## Troubleshooting — viewer won't open
+
+The viewer autostarts from the `SessionStart` hook, which runs in a **non-interactive
+shell**. If Node is installed via **nvm / fnm / volta / asdf**, it may not be on `PATH`
+there — so the autostart resolves Node from the common install locations, and logs what
+it did to **`~/.claude/activity-tracker-viewer.log`**. If `flow.html` won't open:
+
+```bash
+cat ~/.claude/activity-tracker-viewer.log   # why it did / didn't start
+curl -s http://127.0.0.1:39000/state        # is the server up?
+node "$CLAUDE_PLUGIN_ROOT/viewer/server.js"  # start it by hand (needs Node on PATH)
+```
+
+The viewer is **local-only** by design (binds `127.0.0.1`, rejects non-loopback hosts):
+open it on the **same machine**. To view from another machine, forward the port over SSH
+— `ssh -L 39000:127.0.0.1:39000 user@host` — rather than exposing it to the network.
+
 ## Tokens & cost (optional OTel)
 
 ```bash
