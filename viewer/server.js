@@ -270,7 +270,18 @@ function handleTranscriptEntry(o, fallbackSession) {
 function readTranscript(pth, session) {
   if (!pth) return;
   let rec = transcripts.get(pth);
-  if (!rec) { rec = { offset: 0, partial: '', session }; transcripts.set(pth, rec); }
+  if (!rec) {
+    // Live-only: start at the current end of the file so we count ONLY entries
+    // appended after the viewer starts watching — not the whole historical
+    // transcript. This keeps tokens/cost/context in step with the on-screen graph
+    // (built from live hooks) instead of summing thousands of past requests into a
+    // phantom total the graph can't explain. Set TRACKER_FULL_HISTORY=1 to sum from
+    // the start of the transcript instead.
+    let sz = 0;
+    if (!process.env.TRACKER_FULL_HISTORY) { try { sz = fs.statSync(pth).size; } catch {} }
+    rec = { offset: sz, partial: '', session };
+    transcripts.set(pth, rec);
+  }
   if (session) rec.session = session;
   let st;
   try { st = fs.statSync(pth); } catch { return; }

@@ -577,7 +577,10 @@
         $("hRun").style.color=_busy?"var(--run)":"var(--ink2)"; }
       $("hCost").textContent=g.hasMetrics?("$"+(g.cost||0).toFixed(4)):"—";
       $("hTok").textContent=g.hasMetrics?fmtNum((g.tokIn||0)+(g.tokOut||0)+(g.cacheR||0)+(g.cacheW||0)):"—";  // full total incl cache — matches the panel's "total tokens"
-      { const ce=$("hCtx"); if(g.hasMetrics&&g.ctxTokens){ ce.textContent=Math.round(g._ctxPct||0)+"%"; ce.style.color=g._ctxCol||"var(--core)"; } else { ce.textContent="—"; ce.style.color="var(--ink2)"; } }
+      { const ce=$("hCtx");   // compute % straight from ctxTokens so it's consistent with the alert even when the core isn't drawn yet
+        if(g.hasMetrics&&g.ctxTokens){ const p=Math.min(100,g.ctxTokens/ctxLimit(g.lastModel,g.ctxTokens)*100);
+          ce.textContent=Math.round(p)+"%"; ce.style.color=p>=80?COL.fail:p>=55?COL.run:"var(--core)"; }
+        else { ce.textContent="—"; ce.style.color="var(--ink2)"; } }
       $("hActive").textContent=fmtMs(g.activeMs||0);
       if(g.t0)$("hClock").textContent=fmt(Date.now()-g.t0);
       if(time-(g._rail||0)>250){ g._rail=time; updateRail(g); }
@@ -791,7 +794,7 @@
     }
     ctx.globalAlpha=1; ctx.textAlign="center";
   }
-  function fmt(ms){ const s=Math.floor(ms/1000),m=Math.floor(s/60); return String(m).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+  function fmt(ms){ const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60); return h>0 ? h+":"+String(m%60).padStart(2,"0")+":"+String(s%60).padStart(2,"0") : String(m).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
   function rootThread(g,node){ let n=node,guard=0; while(n&&n.owner&&guard++<8){ const o=g.nodes.get(n.owner); if(!o)break; if(o.type==="thread")return o; n=o; } return null; }
   const fmtMs=ms=> ms>=1000?(ms/1000).toFixed(ms>=10000?0:1)+"s":Math.round(ms)+"ms";
   const fmtNum=n=> n>=1e6?(n/1e6).toFixed(2)+"M":n>=1e3?(n/1e3).toFixed(1)+"k":String(Math.round(n));
