@@ -576,7 +576,7 @@
         $("hRun").textContent=running>0?String(running):(_busy?"···":"0");
         $("hRun").style.color=_busy?"var(--run)":"var(--ink2)"; }
       $("hCost").textContent=g.hasMetrics?("$"+(g.cost||0).toFixed(4)):"—";
-      $("hTok").textContent=g.hasMetrics?fmtNum((g.tokIn||0)+(g.tokOut||0)+(g.cacheR||0)+(g.cacheW||0)):"—";  // full total incl cache — matches the panel's "total tokens"
+      $("hTok").textContent=(g.hasMetrics&&g.ctxTokens)?fmtNum(g.ctxTokens):"—";  // current context size (latest request's input+cache), not the cumulative total — the left panel keeps the full breakdown
       { const ce=$("hCtx");   // compute % straight from ctxTokens so it's consistent with the alert even when the core isn't drawn yet
         if(g.hasMetrics&&g.ctxTokens){ const p=Math.min(100,g.ctxTokens/ctxLimit(g.lastModel,g.ctxTokens)*100);
           ce.textContent=Math.round(p)+"%"; ce.style.color=p>=80?COL.fail:p>=55?COL.run:"var(--core)"; }
