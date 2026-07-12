@@ -30,7 +30,6 @@
     color:var(--ink);font:13px/1.5 var(--mono);overflow:hidden;
     -webkit-font-smoothing:antialiased;
   }
-  /* blueprint grid + scanline atmosphere */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
     background-image:
       linear-gradient(var(--line-soft) 1px,transparent 1px),
@@ -104,7 +103,6 @@
   .feed{flex:1;overflow-y:auto;padding:6px 12px 14px;position:relative}
   .feed::-webkit-scrollbar{width:8px}
   .feed::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
-  /* timeline rail */
   .feed .rail{position:absolute;left:22px;top:10px;bottom:10px;width:1px;background:linear-gradient(180deg,transparent,var(--line) 8%,var(--line) 92%,transparent)}
 
   .ev{position:relative;display:grid;grid-template-columns:20px 1fr auto;align-items:start;gap:11px;
@@ -220,7 +218,6 @@
 <script>
 (function(){
   "use strict";
-  // ---- hand-drawn SVG glyphs (no emoji) ----
   const S=(p)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const GLYPH={
     Bash:S('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>'),
@@ -474,11 +471,9 @@
   window.closeDrawer=()=>$("drawer").classList.remove("open");
   document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
 
-  // elapsed clock
   setInterval(()=>{ const s=activeSession?sessions.get(activeSession):null;
     $("clock").textContent = s&&s.t0 ? fmtElapsed(Date.now()-s.t0) : "00:00"; },1000);
 
-  // SSE
   function setLive(on){ const r=$("rec"); r.classList.toggle("live",on); $("recLbl").textContent=on?"recording":"offline"; }
   function connect(){
     const es=new EventSource("/stream");

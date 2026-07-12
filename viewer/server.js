@@ -1,17 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * Activity Tracker viewer server.
- *
- * Pure Node.js (zero dependencies). Responsibilities:
- *   POST /event        <- Claude Code hook payloads (forwarded by scripts/emit.sh)
- *   POST /v1/metrics   <- best-effort OTLP/HTTP JSON metrics (tokens / cost)
- *   POST /v1/logs      <- best-effort OTLP/HTTP JSON logs
- *   GET  /stream       -> Server-Sent Events: replays backlog, then streams live
- *   GET  /             -> the single-file UI
- *   GET  /health       -> { ok, events, clients, off } for tests / monitoring
- *   GET  /state        -> { off } — is tracking disabled? (HUD switch reads this)
- *   POST /toggle       -> flip the on/off sentinel file (HUD switch / command)
+ * Activity Tracker viewer server. Pure Node.js (zero dependencies).
  *
  * Design notes:
  *  - The /event handler must return fast so it never blocks Claude. We parse,
@@ -226,7 +216,6 @@ function estimateCost(model, inp, out, cw5, cw1h, cr) {
   else if (m.includes('opus')) R = [5, 25, 0.5];
   else if (m.includes('haiku')) R = [1, 5, 0.1];
   else R = [3, 15, 0.3]; // sonnet / default
-  // cache write: 1.25x input for 5-minute TTL, 2x input for 1-hour TTL
   return (inp * R[0] + out * R[1] + cr * R[2] + cw5 * R[0] * 1.25 + cw1h * R[0] * 2) / 1e6;
 }
 
@@ -252,9 +241,8 @@ function handleTranscriptEntry(o, fallbackSession) {
     cost: estimateCost(m.model, inp, out, cw5, cw1h, cr), tsIso: o.timestamp || null,
   };
   pushRing(evt); broadcast(evt);
-  // Visible narration: the assistant's text blocks — what Claude says between steps
-  // ("Let me check X", partial answers). The raw reasoning is omitted from the
-  // transcript, so this is the closest live signal to "what Claude is doing".
+  // Visible narration: the assistant's text blocks. Raw reasoning is omitted from
+  // the transcript, so this is the closest live signal to "what Claude is doing".
   const say = Array.isArray(m.content)
     ? m.content.filter((c) => c && c.type === 'text' && c.text).map((c) => c.text.trim()).filter(Boolean).join('\n')
     : '';
@@ -271,12 +259,9 @@ function readTranscript(pth, session) {
   if (!pth) return;
   let rec = transcripts.get(pth);
   if (!rec) {
-    // Live-only: start at the current end of the file so we count ONLY entries
-    // appended after the viewer starts watching — not the whole historical
-    // transcript. This keeps tokens/cost/context in step with the on-screen graph
-    // (built from live hooks) instead of summing thousands of past requests into a
-    // phantom total the graph can't explain. Set TRACKER_FULL_HISTORY=1 to sum from
-    // the start of the transcript instead.
+    // Live-only: start at the file's current end so we count ONLY entries appended
+    // after the viewer starts watching, keeping tokens/cost in step with the live
+    // graph. Set TRACKER_FULL_HISTORY=1 to sum from the start of the transcript.
     let sz = 0;
     if (!process.env.TRACKER_FULL_HISTORY) { try { sz = fs.statSync(pth).size; } catch {} }
     rec = { offset: sz, partial: '', session };

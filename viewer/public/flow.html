@@ -17,7 +17,6 @@
       radial-gradient(80% 80% at 92% 92%, rgba(46,230,255,.05), transparent 60%), var(--bg)}
   #c{position:fixed;inset:0;display:block;cursor:grab}
   #c:active{cursor:grabbing}
-  /* HUD chrome */
   .frame{position:fixed;inset:10px;border:1px solid var(--line2);pointer-events:none;z-index:4}
   .cnr{position:fixed;width:26px;height:26px;border:2px solid var(--cy);pointer-events:none;z-index:6;opacity:.85;filter:drop-shadow(var(--glow))}
   .cnr.tl{top:8px;left:8px;border-right:0;border-bottom:0}
@@ -51,11 +50,8 @@
   .now .dot{width:7px;height:7px;border-radius:50%;background:var(--run);box-shadow:0 0 10px var(--run)}
   .now .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);font-size:13px}
   .legend{position:fixed;left:50%;transform:translateX(-50%);bottom:72px;z-index:8;pointer-events:none;display:flex;flex-wrap:wrap;justify-content:center;gap:9px;font-size:9px;letter-spacing:.13em;text-transform:uppercase;max-width:60vw}
-  /* angular JARVIS-style beveled tabs with a colored accent underline */
   .legend span{display:inline-flex;align-items:center;padding:5px 12px 4px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(3,10,16,.5));border:1px solid rgba(140,220,255,.12);border-bottom:2px solid currentColor;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
   .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:-1px;box-shadow:0 0 7px currentColor}
-  /* live narration boxes — one per active node (main thread + each alive subagent),
-     anchored at 3 o'clock with the accent bar on the node-facing (left) edge */
   .saybox{position:absolute;pointer-events:none;width:270px;max-width:30vw;padding:9px 13px 9px 15px;
     display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .22s;
     background:linear-gradient(90deg,rgba(4,16,22,.74),rgba(4,14,20,.44));
@@ -75,7 +71,6 @@
   .fps{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:8;color:var(--ink2);font-size:9px;letter-spacing:.16em;pointer-events:none;text-transform:uppercase}
   a.link{pointer-events:auto;position:fixed;right:26px;bottom:18px;z-index:9;color:var(--ink2);text-decoration:none;letter-spacing:.14em;text-transform:uppercase;font-size:9px;transition:.2s}
   a.link:hover{color:var(--cy2);text-shadow:var(--glow)}
-  /* right transparent neon rail */
   .rail{position:fixed;top:62px;width:min(310px,40vw);max-height:calc(100% - 150px);z-index:8;
     display:flex;flex-direction:column;overflow:hidden;pointer-events:auto;
     background:linear-gradient(180deg,rgba(6,20,26,.34),rgba(3,10,14,.20));backdrop-filter:blur(7px);border:1px solid var(--line);
@@ -88,7 +83,7 @@
   .warnrow .wi{flex:0 0 auto}
   .warn-crit{color:var(--fail)} .warn-warn{color:var(--run)} .warn-ok{color:var(--ink2)}
   .rail.left.alert{border-color:var(--fail);box-shadow:0 0 30px -10px var(--fail),inset 0 0 40px -30px var(--fail)}
-  /* SESSIONS switcher — pinned above the scrolling body, JARVIS beveled tabs (#21) */
+  /* SESSIONS switcher — pinned above the scrolling body */
   .sessmenu{flex:0 0 auto;padding:11px 14px 12px;border-bottom:1px solid var(--line);background:rgba(3,12,17,.25)}
   .sm-hd{color:var(--ink2);font:600 9px/1 var(--disp);letter-spacing:.24em;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:8px}
   .sm-hd::before{content:"";width:8px;height:8px;background:var(--core);clip-path:polygon(0 0,100% 0,0 100%);box-shadow:0 0 6px var(--core);opacity:.65}
@@ -208,7 +203,7 @@
     vignette.addColorStop(0,"rgba(7,10,14,0)"); vignette.addColorStop(1,"rgba(3,5,8,0.72)"); }
   addEventListener("resize",resize); resize();
 
-  const cam={x:0,y:0,scale:1};   // pan (css px) + zoom
+  const cam={x:0,y:0,scale:1};
   const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   const COL={core:"#2ee6ff",agent:"#c9a3ff",agentDone:"#8f78c0",run:"#ffc061",ok:"#3dffb0",fail:"#ff5f7d",done:"#4a7a8a",think:"#7cd2ff",answer:"#ffd16b",prompt:"#bfeffc",thread:"#8af5ff"};
@@ -450,7 +445,7 @@
       let el=sayBoxes.get(n.id);
       if(!el){ el=document.createElement("div"); el.className="saybox"; sayLayer.appendChild(el); sayBoxes.set(n.id,el); el._txt=null; el._on=false; }
       if(n.say!==el._txt){ el._txt=n.say; el.innerHTML=`<div class="sh">said</div>`+sayContent(n.say); }
-      const ax=n.x+n.r+42, ay=n.y;                       // 3 o'clock, short reach
+      const ax=n.x+n.r+42, ay=n.y;
       el.style.left=(ax*cam.scale+cam.x)+"px"; el.style.top=(ay*cam.scale+cam.y)+"px"; el.style.transform="translateY(-50%)";
       if(!el._on){ el._on=true; requestAnimationFrame(()=>el.classList.add("on")); }
     }
@@ -588,7 +583,7 @@
       if(core&&time-g.last>2600&&time-(g._beat||0)>2200){ g._beat=time; ripple(g,core,COL.core,false); }
     }
 
-    if(time-_sessT>400){ _sessT=time; renderSessions(); }   // keep the session switcher fresh
+    if(time-_sessT>400){ _sessT=time; renderSessions(); }
     updateSayBoxes(focus&&graphs.get(focus));
 
     const nt=$("nowTxt"),nd=$("nowDot");
@@ -667,7 +662,6 @@
     const c=g.nodes.get("core"); if(!c||c.r<1)return;
     const R=c.r, pulse=1+Math.sin(time*0.004)*0.05, BR="#a6f2ff";
     ctx.save(); ctx.translate(c.x,c.y);
-    // outer faint guide ring
     ctx.lineCap="butt"; ctx.lineWidth=1; ctx.strokeStyle=hexA(COL.core,0.10);
     ctx.beginPath(); ctx.arc(0,0,R*3.05*pulse,0,7); ctx.stroke();
     // ---- OUTER RING = context-window gauge. The graduated ticks are its scale;
@@ -698,17 +692,13 @@
       ctx.beginPath(); ctx.moveTo(Math.cos(ea)*(rt-BW/2-4),Math.sin(ea)*(rt-BW/2-4)); ctx.lineTo(Math.cos(ea)*(rt+BW/2+4),Math.sin(ea)*(rt+BW/2+4)); ctx.stroke();
     }
     g._ctxPct=pct; g._ctxCol=gcol;
-    // dashed ring rotating CW
     ctx.save(); ctx.rotate(time*0.00028); ctx.setLineDash([5,11]); ctx.lineWidth=2.2; ctx.strokeStyle=hexA(COL.core,0.55);
     ctx.beginPath(); ctx.arc(0,0,R*2.45*pulse,0,7); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    // three thick arc segments rotating CCW
     ctx.lineWidth=3; ctx.strokeStyle=hexA(COL.core,0.60); const s2=-time*0.00042, R2=R*2.0*pulse;
     for(let k=0;k<3;k++){ const a0=s2+k*(2*Math.PI/3); ctx.beginPath(); ctx.arc(0,0,R2,a0,a0+0.62); ctx.stroke(); }
-    // bright sweep arc rotating CW (signature)
     const sw=time*0.0009, Rs=R*1.6*pulse;
     ctx.lineWidth=4; ctx.strokeStyle=hexA(BR,0.95); ctx.beginPath(); ctx.arc(0,0,Rs,sw,sw+Math.PI*0.75); ctx.stroke();
     ctx.lineWidth=1.4; ctx.strokeStyle=hexA(COL.core,0.40); ctx.beginPath(); ctx.arc(0,0,Rs,sw+Math.PI*0.82,sw+Math.PI*1.7); ctx.stroke();
-    // inner aperture "C" ring
     ctx.lineWidth=2.6; ctx.strokeStyle=hexA(BR,0.80); const ap=-time*0.0006, Ra=R*1.2*pulse;
     ctx.beginPath(); ctx.arc(0,0,Ra,ap+0.55,ap+Math.PI*2-0.55); ctx.stroke();
     ctx.restore();
@@ -747,15 +737,13 @@
     }
     ctx.globalAlpha=1;
   }
-  // short connector from each narrating node to its popup at 3 o'clock: a small
-  // horizontal bar off the node, then a short solid arrow pointing right.
   function drawSayLinks(g){
     ctx.lineCap="round"; ctx.lineWidth=1.4;
     for(const n of sayTargets(g)){ if(n.r<3)continue;
       const col=n.type==="agent"?COL.agent:COL.think, bx=n.x+n.r+8, ax=n.x+n.r+40;
       ctx.strokeStyle=hexA(col,0.55);
-      ctx.beginPath(); ctx.moveTo(n.x,n.y); ctx.lineTo(bx,n.y); ctx.stroke();     // small horizontal bar
-      ctx.beginPath(); ctx.moveTo(bx,n.y); ctx.lineTo(ax,n.y); ctx.stroke();      // short arrow shaft
+      ctx.beginPath(); ctx.moveTo(n.x,n.y); ctx.lineTo(bx,n.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx,n.y); ctx.lineTo(ax,n.y); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(ax,n.y); ctx.lineTo(ax-6,n.y-3.2); ctx.moveTo(ax,n.y); ctx.lineTo(ax-6,n.y+3.2); ctx.stroke();
       ctx.fillStyle=hexA(col,0.9); ctx.beginPath(); ctx.arc(bx,n.y,1.7,0,7); ctx.fill();
     }
@@ -780,7 +768,7 @@
       else if(n.type==="answer"){txt="RESPONSE";}
       else if(n.type==="tool"){txt=n.tool; if(n.status==="run")sub=n.target;}
       if(!txt)continue;
-      // JARVIS callout: leader line drawn out from the node, label underlined on top
+      // callout: leader line drawn out from the node, label underlined on top
       const dir=n.x>=cx?1:-1;
       ctx.font=(n.type==="tool"?"600 10px ":"700 11px ")+"var(--disp),monospace";
       const tw=ctx.measureText(txt).width, x0=n.x+dir*(n.r+3), len=Math.max(30,tw+12), x1=x0+dir*len, ly=n.y;
@@ -919,7 +907,6 @@
       if(g.refusals){ any=true; h+=`<div class="row"><span class="t">refusals</span><span class="s" style="color:${COL.fail}">${g.refusals}</span></div>`; }
       $("railErr").innerHTML=any?h:`<div class="rmuted">no issues</div>`;
     }
-    // cost drivers — what's eating tokens
     if(g.hasMetrics){
       const R=rates(g.lastModel);
       const parts=[["cache read",(g.cacheR||0)*R.cr,COL.fail],["output",(g.tokOut||0)*R.out,COL.run],["cache write",(g.cw5m||0)*R.cw5+(g.cw1h||0)*R.cw1h,COL.think],["input",(g.tokIn||0)*R.in,COL.ok]];
@@ -930,7 +917,6 @@
         rows+=`<div class="row"><span class="d" style="color:${col}"></span><span class="t">${lbl}</span><span class="s">${p.toFixed(0)}%</span></div>`; }
       $("railDrivers").innerHTML=bar+'</div>'+rows;
     } else $("railDrivers").innerHTML=`<div class="rmuted">—</div>`;
-    // alerts — make the user aware
     { const Ws=[]; let crit=false;
       const pct=g.ctxTokens?Math.min(100,g.ctxTokens/ctxLimit(g.lastModel,g.ctxTokens)*100):0;
       if(pct>=85){crit=true;Ws.push(["crit","⚠","context "+pct.toFixed(0)+"% — compaction imminent, quality may drop. /compact or new session."]);}
