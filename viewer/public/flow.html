@@ -52,7 +52,7 @@
   .legend{position:fixed;left:50%;transform:translateX(-50%);bottom:72px;z-index:8;pointer-events:none;display:flex;flex-wrap:wrap;justify-content:center;gap:9px;font-size:9px;letter-spacing:.13em;text-transform:uppercase;max-width:60vw}
   .legend span{display:inline-flex;align-items:center;padding:5px 12px 4px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(3,10,16,.5));border:1px solid rgba(140,220,255,.12);border-bottom:2px solid currentColor;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
   .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:-1px;box-shadow:0 0 7px currentColor}
-  .saybox{position:absolute;pointer-events:none;width:270px;max-width:30vw;padding:9px 13px 9px 15px;
+  .saybox{position:absolute;pointer-events:none;width:320px;max-width:36vw;padding:9px 13px 9px 15px;
     display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .22s;
     background:linear-gradient(90deg,rgba(4,16,22,.74),rgba(4,14,20,.44));
     border-left:2px solid var(--think);box-shadow:-14px 0 34px -22px var(--think) inset, 0 0 22px -14px var(--think);
@@ -64,8 +64,10 @@
   .saybox .sh::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--think),transparent);opacity:.5}
   .saybox.agent .sh::after{background:linear-gradient(90deg,var(--agent),transparent)}
   .saybox .ln{font:500 12px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;color:#bdf3ff;text-shadow:0 0 12px rgba(124,210,255,.35);text-align:left;
-    overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
   .saybox .ln.cur{color:#eaffff;text-shadow:0 0 14px rgba(124,210,255,.6)}
+  .saybox .more{pointer-events:auto;cursor:pointer;align-self:flex-start;margin-top:2px;font:600 9px/1 var(--disp);letter-spacing:.14em;text-transform:uppercase;color:var(--think);opacity:.72}
+  .saybox .more:hover{opacity:1}
   .hint{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:8;color:var(--ink2);font-size:9px;letter-spacing:.08em;pointer-events:none;text-transform:uppercase;white-space:nowrap}
   .hint b{color:var(--cy2);font-weight:600}
   .fps{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:8;color:var(--ink2);font-size:9px;letter-spacing:.16em;pointer-events:none;text-transform:uppercase}
@@ -464,12 +466,13 @@
 
   // ---- live narration boxes (one per active node: main thread + each alive subagent) ----
   const sayLayer=$("sayLayer"), sayBoxes=new Map();
+  function cleanSay(txt){ return String(txt).replace(/```[\s\S]*?```/g," ").replace(/^\s*\|.*$/gm," ").replace(/[#>*`_~]/g," ").replace(/\s+/g," ").trim(); }
   function sayContent(txt){
-    // clean markdown/code/tables, then show the OPENING 1–2 sentences (a coherent
-    // lead reads far better than arbitrary tail fragments cut mid-thought)
-    const raw=String(txt).replace(/```[\s\S]*?```/g," ").replace(/^\s*\|.*$/gm," ").replace(/[#>*`_~]/g," ").replace(/\s+/g," ").trim();
-    const lines=raw.split(/(?<=[.!?…:])\s+/).map(s=>s.trim()).filter(s=>s.length>1).slice(0,2);
-    return lines.length ? lines.map((t,i)=>`<div class="ln${i===0?" cur":""}">${esc(t.slice(0,150))}</div>`).join("") : `<div class="ln">…</div>`;
+    // clean markdown/code/tables, then show the opening few sentences (a coherent lead
+    // reads better than tail fragments); the full text is one click away in the inspector
+    const raw=cleanSay(txt);
+    const lines=raw.split(/(?<=[.!?…:])\s+/).map(s=>s.trim()).filter(s=>s.length>1).slice(0,4);
+    return lines.length ? lines.map((t,i)=>`<div class="ln${i===0?" cur":""}">${esc(t.slice(0,220))}</div>`).join("") : `<div class="ln">…</div>`;
   }
   function sayTargets(g){
     // Narration rides the CURRENT turn's node (main thread only — the transcript carries
@@ -484,13 +487,20 @@
     for(const n of sayTargets(g)){ keep.add(n.id);
       let el=sayBoxes.get(n.id);
       if(!el){ el=document.createElement("div"); el.className="saybox"; sayLayer.appendChild(el); sayBoxes.set(n.id,el); el._txt=null; el._on=false; }
-      if(n.say!==el._txt){ el._txt=n.say; el.innerHTML=`<div class="sh">said</div>`+sayContent(n.say); }
+      if(n.say!==el._txt){ el._txt=n.say;
+        const more=cleanSay(n.say).length>280;   // preview is truncated → offer the full text
+        el.innerHTML=`<div class="sh">said</div>`+sayContent(n.say)+(more?`<div class="more" data-say="${esc(n.id)}">show more ›</div>`:""); }
       const ax=n.x+n.r+42, ay=n.y;
       el.style.left=(ax*cam.scale+cam.x)+"px"; el.style.top=(ay*cam.scale+cam.y)+"px"; el.style.transform="translateY(-50%)";
       if(!el._on){ el._on=true; requestAnimationFrame(()=>el.classList.add("on")); }
     }
     for(const [id,el] of sayBoxes){ if(!keep.has(id)){ el.remove(); sayBoxes.delete(id); } }
   }
+  // "show more" on a narration box → full prose in the inspector
+  sayLayer.addEventListener("click",ev=>{ const m=ev.target.closest(".more"); if(!m)return;
+    const g=focus&&graphs.get(focus), n=g&&g.nodes.get(m.dataset.say); if(!n||!n.say)return;
+    selected=null; selDisk=null;
+    $("railSel").innerHTML=`<div class="rsel"><div class="rt">SAID</div><pre style="white-space:pre-wrap;line-height:1.5">${esc(n.say)}</pre></div>`; });
 
   // ---- layout ----
   function layout(g,time){
