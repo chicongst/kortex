@@ -501,6 +501,7 @@ const server = http.createServer(async (req, res) => {
         id: f.id, project: readableProject(f.project), title: sessionTitle(f.path),
         mtime: f.mtimeMs, size: f.size, model: st.model, msgs: st.msgs,
         tokens: st.inp + st.out + st.cr + st.cw, cost: st.cost, ctxTokens: st.ctxTokens,
+        inp: st.inp, out: st.out, cacheR: st.cr, cacheW: st.cw,
       };
     });
     res.writeHead(200, { 'Content-Type': 'application/json' });

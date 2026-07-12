@@ -102,7 +102,8 @@
   .stab.active .sid{color:var(--run)}
   .stab .smeta{font-size:9px;letter-spacing:.04em;color:var(--ink2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stab .scost{flex:0 0 auto;font:600 10px/1 var(--disp);color:var(--answer)}
-  .stab.disk{cursor:default;opacity:.8;border-left-color:rgba(140,220,255,.12)}
+  .stab.disk{opacity:.82;border-left-color:rgba(140,220,255,.12)}
+  .stab.disk.sel{opacity:1;border-color:var(--core);border-left-color:var(--core)}
   .stab.disk .sid{color:var(--ink)}
   .loadmore{width:100%;margin-top:6px;padding:6px;background:rgba(46,230,255,.06);border:1px solid rgba(140,220,255,.2);border-radius:6px;color:var(--cy2);font:600 9px/1 var(--disp);letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
   .loadmore:hover{background:rgba(46,230,255,.12);border-color:rgba(140,220,255,.4)}
@@ -444,10 +445,10 @@
     const model=s.model?s.model.replace(/^claude-/,""):"—";
     const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
     const cost=s.cost?"$"+s.cost.toFixed(2):"";
-    return `<div class="stab disk" title="past session (from disk)">`
+    return `<button class="stab disk" data-sid="${esc(s.id)}" title="past session — click for detail">`
       +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(s.title||shortSess(s.id))}</span>`
       +`<span class="smeta">${esc(shortSess(s.id))} · ${esc(s.project||"")} · ${esc(model)}${pct?" · "+pct.toFixed(0)+"%":""}</span></span>`
-      +(cost?`<span class="scost">${cost}</span>`:"")+`</div>`;
+      +(cost?`<span class="scost">${cost}</span>`:"")+`</button>`;
   }
   function renderSessions(){
     const el=$("sessList"); if(!el)return; const t=now();
@@ -994,10 +995,33 @@
   // ---- session switcher: click a tab to pin focus; click the active one to resume follow ----
   $("sessList").addEventListener("click",ev=>{
     if(ev.target.closest("#sessMore")){ loadSessions(true); return; }
-    const b=ev.target.closest(".stab"); if(!b)return; const id=b.dataset.id; if(!id)return;   // disk cards carry no id → inert
+    const b=ev.target.closest(".stab"); if(!b)return;
+    if(b.dataset.sid){ showSessionDetail(b.dataset.sid); return; }   // disk session → detail (no live graph to focus)
+    const id=b.dataset.id; if(!id)return;
     if(id===focus){ pinnedFocus=!pinnedFocus; }               // toggle pin / auto-follow on the current one
     else { pinnedFocus=true; focus=null; setFocus(id); }        // pin to the clicked session
     renderSessions(); });
+  // Past (disk) session has no live graph — show its totals in the inspector instead.
+  function showSessionDetail(id){
+    const s=diskSessions.find(x=>x.id===id); if(!s)return;
+    selected=null;
+    for(const el of document.querySelectorAll(".stab.disk.sel")) el.classList.remove("sel");
+    const card=$("sessList").querySelector(`[data-sid="${CSS.escape(id)}"]`); if(card)card.classList.add("sel");
+    const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
+    const row=(k,v)=>`<div class="k">${k}</div><div class="val">${v}</div>`;
+    let when="—"; try{ when=new Date(s.mtime).toLocaleString(); }catch{}
+    let b=row("session",esc(shortSess(s.id)))
+      +(s.project?row("project",esc(s.project)):"")
+      +(s.model?row("model",esc(s.model.replace(/^claude-/,""))):"")
+      +row("≈ api cost","$"+(s.cost||0).toFixed(2))
+      +row("total tokens",fmtNum(s.tokens||0))
+      +row("input / output",fmtNum(s.inp||0)+" / "+fmtNum(s.out||0))
+      +row("cache read / write",fmtNum(s.cacheR||0)+" / "+fmtNum(s.cacheW||0))
+      +(s.ctxTokens?row("context",fmtNum(s.ctxTokens)+" · "+pct.toFixed(0)+"%"):"")
+      +(s.msgs?row("responses",s.msgs):"")
+      +row("last active",esc(when));
+    $("railSel").innerHTML=`<div class="rsel"><div class="rt">SESSION · ${esc(s.title||shortSess(s.id))}</div>${b}</div>`;
+  }
 
   // ---- SSE ----
   function connect(){ const es=new EventSource("/stream");
