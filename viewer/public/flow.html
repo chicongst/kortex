@@ -116,7 +116,8 @@
   .rsec>h4::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--core),transparent);opacity:.5}
   .row{display:flex;align-items:center;gap:8px;padding:4px 0;color:var(--ink);font-size:12px;white-space:nowrap;overflow:hidden}
   .row .d{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 7px currentColor;background:currentColor}
-  .row .t{overflow:hidden;text-overflow:ellipsis}
+  .row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .row .rsub{display:block;color:var(--ink2);font-size:9.5px;text-transform:none;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;opacity:.85}
   .row .s{margin-left:auto;color:var(--ink2);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
   .rmuted{color:var(--ink2);font-size:11px;font-style:italic}
   .rsel{border:1px solid var(--line);background:rgba(46,230,255,.05);padding:11px 12px;margin-bottom:2px;
@@ -271,7 +272,7 @@
       g.cacheR=(g.cacheR||0)+cr; g.cacheW=(g.cacheW||0)+cw; g.cw1h=(g.cw1h||0)+(e.cw1h||0); g.cw5m=(g.cw5m||0)+(e.cw5m||0);
       g.tokens=(g.tokens||0)+inp+out; g.reqCount=(g.reqCount||0)+1;
       if(!e.isSidechain) g.ctxTokens=inp+cr+cw; // latest MAIN request ≈ context size (subagents have their own small window; don't let them clobber the gauge)
-      if(e.model){ g.models=g.models||{}; g.models[e.model]=(g.models[e.model]||0)+cost; g.lastModel=e.model; }
+      if(e.model){ g.models=g.models||{}; g.models[e.model]=(g.models[e.model]||0)+cost; if(!e.isSidechain) g.lastModel=e.model; }
       if(e.stopReason){ g.stops=g.stops||{}; g.stops[e.stopReason]=(g.stops[e.stopReason]||0)+1; if(e.stopReason==="refusal")g.refusals=(g.refusals||0)+1; }
       const src=e.isSidechain?"subagent":"main"; g.costSrc=g.costSrc||{}; g.costSrc[src]=(g.costSrc[src]||0)+cost;
       // attribute to the exact action(s) this message emitted, then roll up to the
@@ -282,7 +283,7 @@
         nd.inTok=(nd.inTok||0)+inp*f; nd.outTok=(nd.outTok||0)+out*f; nd.crTok=(nd.crTok||0)+cr*f; nd.cwTok=(nd.cwTok||0)+cw*f; };
       if(ids.length){ const f=1/ids.length;
         for(const id of ids){ let tool=null; for(const nn of g.nodes.values()){ if(nn.type==="tool"&&nn.useId===id){tool=nn;break;} }
-          if(tool){ placed=true; add(tool,f); const own=g.nodes.get(tool.owner); if(own&&own.type==="agent")add(own,f); const rt=rootThread(g,tool); if(rt)add(rt,f); } }
+          if(tool){ placed=true; add(tool,f); const own=g.nodes.get(tool.owner); if(own&&own.type==="agent"){ add(own,f); if(e.model) own.model=e.model; } const rt=rootThread(g,tool); if(rt)add(rt,f); } }
       }
       if(!placed){ const th=g.currentThread&&g.nodes.get(g.currentThread); if(th)add(th,1); }
       return;
@@ -326,6 +327,9 @@
         x:owner.x,y:owner.y,tx:owner.x,ty:owner.y,r:0,baseR:8,birth:now(),seed:Math.random(),label:(e.tool||"tool")};
       addNode(g,n); impulse(g,owner,n,COL.run); burst(g,owner.x,owner.y,COL.run,4);
       setNow(e.tool+" · "+n.target, COL.run);
+      if(owner) owner.calls=(owner.calls||0)+1;   // per-owner (thread/agent) tool-call count
+      // a Task/Agent call spawns a subagent: queue its description so SubagentStart can label the agent with its task
+      if((e.tool==="Task"||e.tool==="Agent")&&e.input){ (g.pendingTasks=g.pendingTasks||[]).push({type:e.input.subagent_type||null,desc:e.input.description||null}); }
       // track what Claude is gathering (in) vs changing (out)
       const tl=e.tool||"", ti=e.input||{};
       if(/^(Read|NotebookRead)$/.test(tl)){ const f=ti.file_path||ti.notebook_path; if(f){g.reads=g.reads||new Map();g.reads.set(f,(g.reads.get(f)||0)+1);} }
@@ -349,7 +353,10 @@
     } else if(e.event==="SubagentStart"){
       const pid=g.currentThread&&g.nodes.has(g.currentThread)?g.currentThread:"core", par=g.nodes.get(pid)||core;
       if(!g.nodes.has(e.agent)){
-        const n={id:e.agent,type:"agent",owner:pid,status:"alive",x:par.x,y:par.y,tx:par.x,ty:par.y,r:0,baseR:14,birth:now(),seed:Math.random(),label:(e.agentType||"subagent")};
+        // pull the task description from the Task call that spawned this agent (match by type, else FIFO)
+        const pend=g.pendingTasks||[]; let ti=pend.findIndex(p=>p.type&&p.type===e.agentType); if(ti<0&&pend.length)ti=0;
+        const task=ti>=0?(pend.splice(ti,1)[0].desc||null):null;
+        const n={id:e.agent,type:"agent",owner:pid,status:"alive",x:par.x,y:par.y,tx:par.x,ty:par.y,r:0,baseR:14,birth:now(),seed:Math.random(),label:(e.agentType||"subagent"),task};
         addNode(g,n); impulse(g,par,n,COL.agent,()=>{ripple(g,n,COL.agent,true);burst(g,n.x,n.y,COL.agent,14);}); ripple(g,par,COL.agent,false); burst(g,par.x,par.y,COL.agent,10);
       }
       setNow("dispatch ▸ "+(e.agentType||"subagent"), COL.agent);
@@ -357,6 +364,7 @@
       const n=g.nodes.get(e.agent); if(n){ n.status="done"; ripple(g,n,COL.done,false); }
     } else if(e.event==="UserPromptSubmit"){
       const pr=e.raw&&(e.raw.prompt||e.raw.user_prompt);
+      if(!g.title && pr) g.title=String(pr).replace(/\s+/g," ").trim().slice(0,42);   // session name = its first prompt
       // each prompt spawns a persistent THREAD node — the AI's work for this turn branches off it
       const tid="thread:"+e.id;
       const th={id:tid,type:"thread",owner:"core",status:"thinking",x:core.x,y:core.y,tx:core.x,ty:core.y,
@@ -416,8 +424,8 @@
       const cost=g.hasMetrics?"$"+(g.cost||0).toFixed(2):"";
       const foll=active&&!pinnedFocus?" · follow":"";
       return `<button class="stab${active?" active":""}${live?" live":""}" data-id="${esc(g.id)}" title="${active&&pinnedFocus?"pinned — click to resume auto-follow":"click to pin this session"}">`
-        +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(shortSess(g.id))}</span>`
-        +`<span class="smeta">${esc(model)} · ${ev} ev${live?" · live":foll}</span></span>`
+        +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(g.title||shortSess(g.id))}</span>`
+        +`<span class="smeta">${esc(shortSess(g.id))} · ${esc(model)} · ${ev} ev${live?" · live":foll}</span></span>`
         +(cost?`<span class="scost">${cost}</span>`:"")+`</button>`;
     }).join("");
   }
@@ -825,8 +833,13 @@
     const title = n.type==="thread"?"PROMPT" : n.type==="agent"?("SUBAGENT · "+(n.label||"")) : n.type==="core"?"PRIMARY" : n.type==="answer"?"RESPONSE" : (n.tool||"TOOL");
     let b="";
     if(n.type==="thread"){ b=`<div class="k">prompt</div><pre>${esc(n.fullPrompt||n.label||"—")}</pre>`
-      +(n.activeMs?`<div class="k">active time</div><div class="val">${fmtMs(n.activeMs)}</div>`:"")+tokRows(n); }
-    else if(n.type==="agent"){ b=`<div class="k">type</div><div class="val">${esc(n.label||"subagent")}</div><div class="k">status</div><div class="val">${esc(n.status)}</div>`+tokRows(n); }
+      +(n.activeMs?`<div class="k">active time</div><div class="val">${fmtMs(n.activeMs)}</div>`:"")
+      +(n.calls?`<div class="k">tool calls</div><div class="val">${n.calls}</div>`:"")+tokRows(n); }
+    else if(n.type==="agent"){ b=`<div class="k">type</div><div class="val">${esc(n.label||"subagent")}</div>`
+      +(n.model?`<div class="k">model</div><div class="val">${esc(n.model.replace(/^claude-/,""))}</div>`:"")
+      +(n.task?`<div class="k">task</div><div class="val">${esc(n.task)}</div>`:"")
+      +(n.calls?`<div class="k">tool calls</div><div class="val">${n.calls}</div>`:"")
+      +`<div class="k">status</div><div class="val">${esc(n.status)}</div>`+tokRows(n); }
     else if(n.type==="core"){ b=`<div class="k">session</div><div class="val">${esc(focus||"—")}</div>`; }
     else if(n.type==="answer"){ b=`<div class="val">the assistant finished this turn.</div>`; }
     else {
@@ -865,7 +878,10 @@
     const threads=[...g.nodes.values()].filter(n=>n.type==="thread").sort((a,b)=>a.birth-b.birth);
     $("railThreads").innerHTML=mk(threads,"no prompts yet",t=>`<div class="row"><span class="d" style="color:${COL.thread}"></span><span class="t">${esc(t.label||"prompt")}</span><span class="s">${esc(meta(t))}</span></div>`);
     const agents=[...g.nodes.values()].filter(n=>n.type==="agent");
-    $("railAgents").innerHTML=mk(agents,"none",a=>`<div class="row"><span class="d" style="color:${a.status==="done"?COL.done:COL.agent}"></span><span class="t">${esc(a.label||"subagent")}</span><span class="s">${esc(meta(a))}</span></div>`);
+    $("railAgents").innerHTML=mk(agents,"none",a=>{
+      const sub=[a.model?a.model.replace(/^claude-/,""):null, a.calls?a.calls+" calls":null, meta(a)].filter(Boolean).join(" · ");
+      return `<div class="row"><span class="d" style="color:${a.status==="done"?COL.done:COL.agent}"></span><span class="t">${esc(a.label||"subagent")}${a.task?`<span class="rsub">${esc(a.task)}</span>`:""}</span><span class="s">${esc(sub)}</span></div>`;
+    });
     const run=[...g.nodes.values()].filter(n=>n.type==="tool"&&n.status==="run");
     $("railRun").innerHTML=mk(run,"idle",r=>`<div class="row"><span class="d" style="color:${COL.run}"></span><span class="t">${esc(r.tool)} · ${esc(r.target||"")}</span></div>`);
     { const reads=g.reads||new Map(), edits=g.edits||new Map(); let h="";
