@@ -1,7 +1,7 @@
 {
   "name": "activity-tracker",
   "displayName": "Activity Tracker",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Live flow-graph viewer for Claude Code. KORTEX animates each prompt as a thread that branches into tools and parallel subagents in real time — with zero-config token, cost, and context-window tracking read straight from the session transcript. Local-only, zero dependencies. After installing, restart Claude Code, then open http://127.0.0.1:39000/flow.html to watch.",
   "author": { "name": "Cong" },
   "hooks": "./hooks/hooks.json",

@@ -102,6 +102,10 @@
   .stab.active .sid{color:var(--run)}
   .stab .smeta{font-size:9px;letter-spacing:.04em;color:var(--ink2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stab .scost{flex:0 0 auto;font:600 10px/1 var(--disp);color:var(--answer)}
+  .stab.disk{cursor:default;opacity:.8;border-left-color:rgba(140,220,255,.12)}
+  .stab.disk .sid{color:var(--ink)}
+  .loadmore{width:100%;margin-top:6px;padding:6px;background:rgba(46,230,255,.06);border:1px solid rgba(140,220,255,.2);border-radius:6px;color:var(--cy2);font:600 9px/1 var(--disp);letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
+  .loadmore:hover{background:rgba(46,230,255,.12);border-color:rgba(140,220,255,.4)}
   .log{max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:2px}
   .lg{display:flex;align-items:baseline;gap:8px;font-size:11px;white-space:nowrap;overflow:hidden}
   .lg .lt{color:var(--ink2);font-size:9px;flex:0 0 auto}
@@ -413,21 +417,48 @@
   function hideEmpty(){ const e=$("empty"); if(e)e.remove(); }
 
   // ---- SESSIONS switcher (pinned, top of the left panel) ----
-  let _sessT=0;
+  // Live sessions (from the SSE stream) render at the top and are clickable to focus.
+  // Below them, past sessions discovered on disk via /sessions — durable across
+  // reloads/restarts, paginated with "load more".
+  let _sessT=0, diskSessions=[], sessOffset=0, sessTotal=0, sessHasMore=false, sessLoading=false, sessFetched=false;
+  async function loadSessions(more){
+    if(sessLoading)return; sessLoading=true; if(more||!sessFetched)renderSessions();
+    const off=more?sessOffset:0;
+    try{ const r=await fetch("/sessions?limit=10&offset="+off); const j=await r.json();
+      if(!more) diskSessions=[];
+      diskSessions=diskSessions.concat(j.sessions||[]);
+      sessOffset=off+((j.sessions||[]).length); sessTotal=j.total||0; sessHasMore=!!j.hasMore; sessFetched=true;
+    }catch{} sessLoading=false; renderSessions();
+  }
+  function liveCard(g,t){
+    const live=t-(g.last||0)<4000, active=g.id===focus;
+    const model=g.lastModel?g.lastModel.replace(/^claude-/,""):"—", ev=g.events||0;
+    const cost=g.hasMetrics?"$"+(g.cost||0).toFixed(2):"";
+    const foll=active&&!pinnedFocus?" · follow":"";
+    return `<button class="stab${active?" active":""}${live?" live":""}" data-id="${esc(g.id)}" title="${active&&pinnedFocus?"pinned — click to resume auto-follow":"click to pin this session"}">`
+      +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(g.title||shortSess(g.id))}</span>`
+      +`<span class="smeta">${esc(shortSess(g.id))} · ${esc(model)} · ${ev} ev${live?" · live":foll}</span></span>`
+      +(cost?`<span class="scost">${cost}</span>`:"")+`</button>`;
+  }
+  function diskCard(s){
+    const model=s.model?s.model.replace(/^claude-/,""):"—";
+    const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
+    const cost=s.cost?"$"+s.cost.toFixed(2):"";
+    return `<div class="stab disk" title="past session (from disk)">`
+      +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(s.title||shortSess(s.id))}</span>`
+      +`<span class="smeta">${esc(shortSess(s.id))} · ${esc(s.project||"")} · ${esc(model)}${pct?" · "+pct.toFixed(0)+"%":""}</span></span>`
+      +(cost?`<span class="scost">${cost}</span>`:"")+`</div>`;
+  }
   function renderSessions(){
-    const el=$("sessList"); if(!el)return;
-    const list=[...graphs.values()].sort((a,b)=>(b.last||0)-(a.last||0)), t=now();
-    if(!list.length){ el.innerHTML=`<div class="rmuted" style="font-size:11px">no sessions yet</div>`; return; }
-    el.innerHTML=list.map(g=>{
-      const live=t-(g.last||0)<4000, active=g.id===focus;
-      const model=g.lastModel?g.lastModel.replace(/^claude-/,""):"—", ev=g.events||0;
-      const cost=g.hasMetrics?"$"+(g.cost||0).toFixed(2):"";
-      const foll=active&&!pinnedFocus?" · follow":"";
-      return `<button class="stab${active?" active":""}${live?" live":""}" data-id="${esc(g.id)}" title="${active&&pinnedFocus?"pinned — click to resume auto-follow":"click to pin this session"}">`
-        +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(g.title||shortSess(g.id))}</span>`
-        +`<span class="smeta">${esc(shortSess(g.id))} · ${esc(model)} · ${ev} ev${live?" · live":foll}</span></span>`
-        +(cost?`<span class="scost">${cost}</span>`:"")+`</button>`;
-    }).join("");
+    const el=$("sessList"); if(!el)return; const t=now();
+    const live=[...graphs.values()].sort((a,b)=>(b.last||0)-(a.last||0));
+    const liveIds=new Set(live.map(g=>g.id));
+    let html=live.map(g=>liveCard(g,t)).join("");
+    for(const s of diskSessions){ if(!liveIds.has(s.id)) html+=diskCard(s); }
+    if(!html) html=`<div class="rmuted" style="font-size:11px">${sessFetched?"no sessions":"loading…"}</div>`;
+    if(sessHasMore){ const rem=Math.max(0,sessTotal-diskSessions.length);
+      html+=`<button class="loadmore" id="sessMore">${sessLoading?"loading…":"load more"+(rem?" ("+rem+")":"")}</button>`; }
+    el.innerHTML=html;
   }
 
   // ---- live narration boxes (one per active node: main thread + each alive subagent) ----
@@ -961,7 +992,9 @@
   refreshSwitch(); setInterval(refreshSwitch,3000);   // reflect /activity-tracker toggles too
 
   // ---- session switcher: click a tab to pin focus; click the active one to resume follow ----
-  $("sessList").addEventListener("click",ev=>{ const b=ev.target.closest(".stab"); if(!b)return; const id=b.dataset.id; if(!id)return;
+  $("sessList").addEventListener("click",ev=>{
+    if(ev.target.closest("#sessMore")){ loadSessions(true); return; }
+    const b=ev.target.closest(".stab"); if(!b)return; const id=b.dataset.id; if(!id)return;   // disk cards carry no id → inert
     if(id===focus){ pinnedFocus=!pinnedFocus; }               // toggle pin / auto-follow on the current one
     else { pinnedFocus=true; focus=null; setFocus(id); }        // pin to the clicked session
     renderSessions(); });
@@ -969,7 +1002,7 @@
   // ---- SSE ----
   function connect(){ const es=new EventSource("/stream");
     es.addEventListener("activity",m=>{ try{onEvent(JSON.parse(m.data));}catch(err){console.error(err);} }); }
-  connect(); requestAnimationFrame(draw);
+  connect(); requestAnimationFrame(draw); loadSessions();   // durable session list from disk
 })();
 </script>
 </body>

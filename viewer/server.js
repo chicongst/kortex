@@ -287,6 +287,85 @@ function readTranscript(pth, session) {
   }
 }
 
+// ---- session discovery -----------------------------------------------------
+// Claude Code writes every session to ~/.claude/projects/<encoded-cwd>/<id>.jsonl.
+// These files survive restarts, so we enumerate them to list past sessions
+// (newest first, paginated). The live SSE stream only knows sessions active since
+// this process booted; disk discovery is how the list persists across reloads.
+const PROJECTS_DIR = process.env.TRACKER_PROJECTS || path.join(os.homedir(), '.claude', 'projects');
+const statsCache = new Map(); // path -> { mtimeMs, stats } so a page isn't re-parsed
+
+function listSessionFiles() {
+  const out = [];
+  let projects;
+  try { projects = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); } catch { return out; }
+  for (const pdir of projects) {
+    if (!pdir.isDirectory()) continue;
+    const dir = path.join(PROJECTS_DIR, pdir.name);
+    let files; try { files = fs.readdirSync(dir); } catch { continue; }
+    for (const fn of files) {
+      if (!fn.endsWith('.jsonl')) continue;
+      const fp = path.join(dir, fn);
+      let st; try { st = fs.statSync(fp); } catch { continue; }
+      out.push({ path: fp, id: fn.replace(/\.jsonl$/, ''), project: pdir.name, mtimeMs: st.mtimeMs, size: st.size });
+    }
+  }
+  out.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return out;
+}
+
+// dir name is the cwd with separators turned to dashes; the last segment reads as the project
+function readableProject(encoded) {
+  const seg = String(encoded).split('-').filter(Boolean);
+  return seg.length ? seg[seg.length - 1] : String(encoded);
+}
+
+// session name = its first user prompt; read only a head chunk, not the whole file
+function sessionTitle(fp) {
+  let fd; try { fd = fs.openSync(fp, 'r'); } catch { return null; }
+  try {
+    const len = Math.min(65536, fs.fstatSync(fd).size);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, 0);
+    for (const line of buf.toString('utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.type === 'user' && o.message) {
+        const c = o.message.content;
+        const txt = typeof c === 'string' ? c
+          : Array.isArray(c) ? c.filter((b) => b && b.type === 'text').map((b) => b.text).join(' ') : '';
+        const t = String(txt).replace(/\s+/g, ' ').trim();
+        if (t) return t.slice(0, 80);
+      }
+    }
+  } catch { /* ignore */ } finally { try { fs.closeSync(fd); } catch {} }
+  return null;
+}
+
+// full totals for one session (cost/tokens/model/context), cached by mtime
+function sessionStats(fp, mtimeMs) {
+  const cached = statsCache.get(fp);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.stats;
+  const s = { model: null, msgs: 0, inp: 0, out: 0, cr: 0, cw: 0, cost: 0, ctxTokens: 0 };
+  let data; try { data = fs.readFileSync(fp, 'utf8'); } catch { return s; }
+  for (const line of data.split('\n')) {
+    if (!line.trim()) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.type !== 'assistant' || !o.message || !o.message.usage) continue;
+    const u = o.message.usage, m = o.message;
+    const inp = u.input_tokens || 0, out = u.output_tokens || 0, cr = u.cache_read_input_tokens || 0, cw = u.cache_creation_input_tokens || 0;
+    const cc = u.cache_creation || {};
+    let cw5 = cc.ephemeral_5m_input_tokens || 0, cw1h = cc.ephemeral_1h_input_tokens || 0;
+    if (!cw5 && !cw1h && cw) cw5 = cw;
+    s.msgs++; s.inp += inp; s.out += out; s.cr += cr; s.cw += cw;
+    s.cost += estimateCost(m.model, inp, out, cw5, cw1h, cr);
+    if (m.model) s.model = m.model;
+    if (!o.isSidechain) s.ctxTokens = inp + cr + cw; // latest main request ≈ context size
+  }
+  statsCache.set(fp, { mtimeMs, stats: s });
+  return s;
+}
+
 // ---- helpers ---------------------------------------------------------------
 function readBody(req, cap = 5 * 1024 * 1024) {
   return new Promise((resolve) => {
@@ -406,6 +485,26 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && p === '/state') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ off: isOff() }));
+    return;
+  }
+
+  // GET /sessions?limit=10&offset=0 : durable session list from disk, newest first.
+  // Cheap fields (id/title/project/mtime) for the page; cost/tokens/context computed
+  // for just the returned page (cached), so a big history stays paginated and fast.
+  if (req.method === 'GET' && p === '/sessions') {
+    const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 10));
+    const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+    const files = listSessionFiles();
+    const page = files.slice(offset, offset + limit).map((f) => {
+      const st = sessionStats(f.path, f.mtimeMs);
+      return {
+        id: f.id, project: readableProject(f.project), title: sessionTitle(f.path),
+        mtime: f.mtimeMs, size: f.size, model: st.model, msgs: st.msgs,
+        tokens: st.inp + st.out + st.cr + st.cw, cost: st.cost, ctxTokens: st.ctxTokens,
+      };
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ sessions: page, offset, limit, total: files.length, hasMore: offset + limit < files.length }));
     return;
   }
 
