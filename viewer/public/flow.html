@@ -421,7 +421,7 @@
   // Live sessions (from the SSE stream) render at the top and are clickable to focus.
   // Below them, past sessions discovered on disk via /sessions — durable across
   // reloads/restarts, paginated with "load more".
-  let _sessT=0, diskSessions=[], sessOffset=0, sessTotal=0, sessHasMore=false, sessLoading=false, sessFetched=false;
+  let _sessT=0, diskSessions=[], sessOffset=0, sessTotal=0, sessHasMore=false, sessLoading=false, sessFetched=false, selDisk=null;
   async function loadSessions(more){
     if(sessLoading)return; sessLoading=true; if(more||!sessFetched)renderSessions();
     const off=more?sessOffset:0;
@@ -445,7 +445,7 @@
     const model=s.model?s.model.replace(/^claude-/,""):"—";
     const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
     const cost=s.cost?"$"+s.cost.toFixed(2):"";
-    return `<button class="stab disk" data-sid="${esc(s.id)}" title="past session — click for detail">`
+    return `<button class="stab disk${s.id===selDisk?" sel":""}" data-sid="${esc(s.id)}" title="past session — click for detail">`
       +`<span class="sdot"></span><span class="sinfo"><span class="sid">${esc(s.title||shortSess(s.id))}</span>`
       +`<span class="smeta">${esc(shortSess(s.id))} · ${esc(s.project||"")} · ${esc(model)}${pct?" · "+pct.toFixed(0)+"%":""}</span></span>`
       +(cost?`<span class="scost">${cost}</span>`:"")+`</button>`;
@@ -861,7 +861,7 @@
   addEventListener("keydown",e=>{ if(e.key==="Escape")closeDetail(); });
 
   function openDetail(n){
-    selected=n;
+    selected=n; selDisk=null;   // selecting a node clears any past-session selection
     const title = n.type==="thread"?"PROMPT" : n.type==="agent"?("SUBAGENT · "+(n.label||"")) : n.type==="core"?"PRIMARY" : n.type==="answer"?"RESPONSE" : (n.tool||"TOOL");
     let b="";
     if(n.type==="thread"){ b=`<div class="k">prompt</div><pre>${esc(n.fullPrompt||n.label||"—")}</pre>`
@@ -883,7 +883,7 @@
     }
     $("railSel").innerHTML=`<div class="rsel"><div class="rt">${esc(title)}</div>${b}</div>`;
   }
-  function closeDetail(){ selected=null; $("railSel").innerHTML=`<div class="rmuted">click a node to inspect</div>`; }
+  function closeDetail(){ selected=null; selDisk=null; $("railSel").innerHTML=`<div class="rmuted">click a node to inspect</div>`; }
   window.__closeDetail=closeDetail;
   const p2=n=>String(n).padStart(2,"0");
   function hhmmss(ms){ const d=new Date(ms); return p2(d.getHours())+":"+p2(d.getMinutes())+":"+p2(d.getSeconds()); }
@@ -998,15 +998,14 @@
     const b=ev.target.closest(".stab"); if(!b)return;
     if(b.dataset.sid){ showSessionDetail(b.dataset.sid); return; }   // disk session → detail (no live graph to focus)
     const id=b.dataset.id; if(!id)return;
+    selDisk=null; closeDetail();                               // back to a live session: drop any disk detail + highlight
     if(id===focus){ pinnedFocus=!pinnedFocus; }               // toggle pin / auto-follow on the current one
     else { pinnedFocus=true; focus=null; setFocus(id); }        // pin to the clicked session
     renderSessions(); });
   // Past (disk) session has no live graph — show its totals in the inspector instead.
   function showSessionDetail(id){
     const s=diskSessions.find(x=>x.id===id); if(!s)return;
-    selected=null;
-    for(const el of document.querySelectorAll(".stab.disk.sel")) el.classList.remove("sel");
-    const card=$("sessList").querySelector(`[data-sid="${CSS.escape(id)}"]`); if(card)card.classList.add("sel");
+    selected=null; selDisk=id;   // tracked in state so the highlight survives the periodic re-render
     const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
     const row=(k,v)=>`<div class="k">${k}</div><div class="val">${v}</div>`;
     let when="—"; try{ when=new Date(s.mtime).toLocaleString(); }catch{}
@@ -1021,6 +1020,7 @@
       +(s.msgs?row("responses",s.msgs):"")
       +row("last active",esc(when));
     $("railSel").innerHTML=`<div class="rsel"><div class="rt">SESSION · ${esc(s.title||shortSess(s.id))}</div>${b}</div>`;
+    renderSessions();   // apply the selected highlight now
   }
 
   // ---- SSE ----
