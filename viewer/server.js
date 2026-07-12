@@ -400,6 +400,56 @@ function sessionPrompts(fp, mtimeMs, cap = 300) {
   return out;
 }
 
+// Reconstruct a session's graph as an ordered event stream the client can feed
+// through its normal onEvent path (each tagged replay:true so it bypasses the live
+// dedup). Main thread is rebuilt fully (prompts, tools, results, usage, narration);
+// subagents appear as nodes from their spawning Task call — their internal work is
+// not in this transcript. Tail-capped so a huge session stays light.
+function sessionReplay(fp, session, maxEvents = 6000) {
+  let data; try { data = fs.readFileSync(fp, 'utf8'); } catch { return []; }
+  const ev = []; let seq = 0;
+  const push = (o) => { o.id = ++seq; o.replay = true; o.session = session; ev.push(o); };
+  for (const line of data.split('\n')) {
+    if (!line.trim()) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    const ts = o.timestamp ? Date.parse(o.timestamp) : 0;
+    if (o.type === 'user' && !o.isSidechain && o.message) {
+      const c = o.message.content;
+      if (typeof c === 'string') { if (c.trim()) push({ kind: 'hook', ts, event: 'UserPromptSubmit', agent: 'main', raw: { prompt: c.trim() } }); }
+      else if (Array.isArray(c)) {
+        const texts = c.filter((b) => b && b.type === 'text' && b.text);
+        if (texts.length) push({ kind: 'hook', ts, event: 'UserPromptSubmit', agent: 'main', raw: { prompt: texts.map((b) => b.text).join(' ').trim() } });
+        for (const tr of c) if (tr && tr.type === 'tool_result') {
+          push({ kind: 'hook', ts, event: 'PostToolUse', agent: 'main', toolUseId: tr.tool_use_id, output: typeof tr.content === 'string' ? { message: tr.content } : tr.content });
+        }
+      }
+    } else if (o.type === 'assistant' && !o.isSidechain && o.message) {
+      const m = o.message, content = Array.isArray(m.content) ? m.content : [];
+      const toolUseIds = [];
+      for (const b of content) {
+        if (!b || b.type !== 'tool_use') continue;
+        toolUseIds.push(b.id);
+        push({ kind: 'hook', ts, event: 'PreToolUse', agent: 'main', tool: b.name, toolUseId: b.id, input: b.input || {} });
+        if (b.name === 'Task' || b.name === 'Agent') {
+          push({ kind: 'hook', ts, event: 'SubagentStart', agent: b.id, agentType: (b.input && b.input.subagent_type) || 'subagent', input: b.input || {} });
+          push({ kind: 'hook', ts, event: 'SubagentStop', agent: b.id });
+        }
+      }
+      if (m.usage) {
+        const u = m.usage, inp = u.input_tokens || 0, out = u.output_tokens || 0, cr = u.cache_read_input_tokens || 0, cw = u.cache_creation_input_tokens || 0;
+        const cc = u.cache_creation || {}; let cw5 = cc.ephemeral_5m_input_tokens || 0, cw1h = cc.ephemeral_1h_input_tokens || 0; if (!cw5 && !cw1h && cw) cw5 = cw;
+        push({ kind: 'usage', ts, tsIso: o.timestamp || null, isSidechain: false, model: m.model || null, toolUseIds,
+          inputTokens: inp, outputTokens: out, cacheReadTokens: cr, cacheCreateTokens: cw, cw5m: cw5, cw1h: cw1h,
+          stopReason: m.stop_reason || null, cost: estimateCost(m.model, inp, out, cw5, cw1h, cr) });
+      }
+      const texts = content.filter((b) => b && b.type === 'text' && b.text).map((b) => b.text.trim()).filter(Boolean);
+      if (texts.length) push({ kind: 'say', ts, tsIso: o.timestamp || null, isSidechain: false, text: texts.join('\n').slice(0, 2000) });
+      if (m.stop_reason) push({ kind: 'hook', ts, event: 'Stop', agent: 'main' });
+    }
+  }
+  return ev.length > maxEvents ? ev.slice(ev.length - maxEvents) : ev;
+}
+
 // ---- helpers ---------------------------------------------------------------
 function readBody(req, cap = 5 * 1024 * 1024) {
   return new Promise((resolve) => {
@@ -555,6 +605,16 @@ const server = http.createServer(async (req, res) => {
       model: st.model, msgs: st.msgs, tokens: st.inp + st.out + st.cr + st.cw, cost: st.cost, ctxTokens: st.ctxTokens,
       inp: st.inp, out: st.out, cacheR: st.cr, cacheW: st.cw, prompts: sessionPrompts(f.path, f.mtimeMs),
     }));
+    return;
+  }
+
+  // GET /session/replay?id=<id> : the session rebuilt as an ordered event stream
+  if (req.method === 'GET' && p === '/session/replay') {
+    const id = url.searchParams.get('id');
+    const f = id && findSessionPath(id);
+    if (!f) { res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"not found"}'); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ id: f.id, events: sessionReplay(f.path, f.id) }));
     return;
   }
 
