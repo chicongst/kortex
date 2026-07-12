@@ -366,6 +366,40 @@ function sessionStats(fp, mtimeMs) {
   return s;
 }
 
+function findSessionPath(id) {
+  for (const f of listSessionFiles()) if (f.id === id) return f;
+  return null;
+}
+
+// the session's prompt history = its main-thread user messages (skip tool-result-only
+// turns and subagent sidechains). Cached by mtime.
+const promptsCache = new Map();
+function sessionPrompts(fp, mtimeMs, cap = 300) {
+  const hit = promptsCache.get(fp);
+  if (hit && hit.mtimeMs === mtimeMs) return hit.prompts;
+  const out = [];
+  let data; try { data = fs.readFileSync(fp, 'utf8'); } catch { return out; }
+  for (const line of data.split('\n')) {
+    if (!line.trim()) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.type !== 'user' || !o.message || o.isSidechain) continue;
+    const c = o.message.content;
+    let txt = '';
+    if (typeof c === 'string') txt = c;
+    else if (Array.isArray(c)) {
+      const tb = c.filter((b) => b && b.type === 'text' && b.text);
+      if (!tb.length) continue; // tool_result-only turn, not a real prompt
+      txt = tb.map((b) => b.text).join(' ');
+    } else continue;
+    txt = String(txt).replace(/\s+/g, ' ').trim();
+    if (!txt) continue;
+    out.push({ n: out.length + 1, text: txt.slice(0, 500), ts: o.timestamp || null });
+    if (out.length >= cap) break;
+  }
+  promptsCache.set(fp, { mtimeMs, prompts: out });
+  return out;
+}
+
 // ---- helpers ---------------------------------------------------------------
 function readBody(req, cap = 5 * 1024 * 1024) {
   return new Promise((resolve) => {
@@ -506,6 +540,21 @@ const server = http.createServer(async (req, res) => {
     });
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ sessions: page, offset, limit, total: files.length, hasMore: offset + limit < files.length }));
+    return;
+  }
+
+  // GET /session?id=<id> : one session's full detail incl. prompt history (from disk)
+  if (req.method === 'GET' && p === '/session') {
+    const id = url.searchParams.get('id');
+    const f = id && findSessionPath(id);
+    if (!f) { res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"not found"}'); return; }
+    const st = sessionStats(f.path, f.mtimeMs);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      id: f.id, project: readableProject(f.project), title: sessionTitle(f.path), mtime: f.mtimeMs,
+      model: st.model, msgs: st.msgs, tokens: st.inp + st.out + st.cr + st.cw, cost: st.cost, ctxTokens: st.ctxTokens,
+      inp: st.inp, out: st.out, cacheR: st.cr, cacheW: st.cw, prompts: sessionPrompts(f.path, f.mtimeMs),
+    }));
     return;
   }
 

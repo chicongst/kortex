@@ -109,6 +109,10 @@
   .stab.disk .sid{color:var(--ink)}
   .loadmore{width:100%;margin-top:6px;padding:6px;background:rgba(46,230,255,.06);border:1px solid rgba(140,220,255,.2);border-radius:6px;color:var(--cy2);font:600 9px/1 var(--disp);letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
   .loadmore:hover{background:rgba(46,230,255,.12);border-color:rgba(140,220,255,.4)}
+  .plist{display:flex;flex-direction:column;gap:5px;max-height:42vh;overflow-y:auto;margin-top:4px;padding-right:4px}
+  .prow{display:flex;gap:8px;font-size:11px;color:var(--ink);line-height:1.4}
+  .prow .pn{flex:0 0 auto;color:var(--ink2);font:600 10px/1.5 var(--disp);min-width:22px;text-align:right}
+  .prow .pt{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .log{max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:2px}
   .lg{display:flex;align-items:baseline;gap:8px;font-size:11px;white-space:nowrap;overflow:hidden}
   .lg .lt{color:var(--ink2);font-size:9px;flex:0 0 auto}
@@ -1013,7 +1017,7 @@
     else { pinnedFocus=true; focus=null; setFocus(id); }        // pin to the clicked session
     renderSessions(); });
   // Past (disk) session has no live graph — show its totals in the inspector instead.
-  function showSessionDetail(id){
+  async function showSessionDetail(id){
     const s=diskSessions.find(x=>x.id===id); if(!s)return;
     selected=null; selDisk=id;   // tracked in state so the highlight survives the periodic re-render
     const pct=s.ctxTokens?Math.min(100,s.ctxTokens/ctxLimit(s.model,s.ctxTokens)*100):0;
@@ -1028,9 +1032,18 @@
       +row("cache read / write",fmtNum(s.cacheR||0)+" / "+fmtNum(s.cacheW||0))
       +(s.ctxTokens?row("context",fmtNum(s.ctxTokens)+" · "+pct.toFixed(0)+"%"):"")
       +(s.msgs?row("responses",s.msgs):"")
-      +row("last active",esc(when));
+      +row("last active",esc(when))
+      +`<div class="k">prompt history</div><div id="sessPrompts" class="rmuted">loading…</div>`;
     $("railSel").innerHTML=`<div class="rsel"><div class="rt">SESSION · ${esc(s.title||shortSess(s.id))}</div>${b}</div>`;
     renderSessions();   // apply the selected highlight now
+    // pull the session's prompt history from disk and fill it in
+    try{ const r=await fetch("/session?id="+encodeURIComponent(id)); const j=await r.json();
+      if(selDisk!==id) return;                       // user moved on before it loaded
+      const box=$("sessPrompts"); if(!box) return;
+      box.outerHTML = (j.prompts&&j.prompts.length)
+        ? `<div class="plist">`+j.prompts.map(p=>`<div class="prow"><span class="pn">${p.n}</span><span class="pt">${esc(p.text)}</span></div>`).join("")+`</div>`
+        : `<div class="rmuted">no prompts</div>`;
+    }catch{}
   }
 
   // ---- SSE ----
