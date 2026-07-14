@@ -19,6 +19,11 @@ const path = require('path');
 const os = require('os');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
+// the running plugin's version, surfaced in the HUD so you can tell which build you're on
+const VERSION = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version || null; }
+  catch { return null; }
+})();
 const RING_MAX = Number(process.env.TRACKER_RING || 5000);
 
 // ---- on/off flag -----------------------------------------------------------
@@ -568,7 +573,7 @@ const server = http.createServer(async (req, res) => {
   // GET /state : is tracking currently off? (HUD reads this to draw the switch)
   if (req.method === 'GET' && p === '/state') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ off: isOff() }));
+    res.end(JSON.stringify({ off: isOff(), version: VERSION }));
     return;
   }
 

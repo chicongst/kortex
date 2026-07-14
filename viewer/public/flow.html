@@ -33,6 +33,7 @@
   @keyframes beat{0%,100%{box-shadow:0 0 0 0 rgba(46,230,255,.6)}50%{box-shadow:0 0 0 7px rgba(46,230,255,0)}}
   .brand b{font:700 16px/1 var(--disp);letter-spacing:.34em;text-transform:uppercase;color:var(--cy2);text-shadow:var(--glow)}
   .brand small{color:var(--ink2);letter-spacing:.26em;text-transform:uppercase;font-size:9px}
+  .brand .ver{color:var(--cy2);opacity:.75;letter-spacing:.12em}
   .pwr{pointer-events:auto;cursor:pointer;margin-left:16px;display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 7px;border-radius:999px;border:1px solid var(--core);color:var(--core);background:rgba(46,230,255,.07);transition:all .2s}
   .pwr svg{width:16px;height:16px;filter:drop-shadow(0 0 4px currentColor)}
   .pwr em{font:700 10px/1 var(--disp);letter-spacing:.18em;font-style:normal}
@@ -151,7 +152,7 @@
 <div class="scan"></div>
 
 <div class="hud top">
-  <div class="brand"><span class="led"></span><div><b>KORTEX</b><br><small>neural flow monitor</small></div><button id="hSwitch" class="pwr live" title="Turn tracking on/off — persists across sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.2 L12 12"/><path d="M7.4 6.6 A7 7 0 1 0 16.6 6.6"/></svg><em id="hSwState">LIVE</em></button></div>
+  <div class="brand"><span class="led"></span><div><b>KORTEX</b><br><small>neural flow monitor<span id="hVer" class="ver"></span></small></div><button id="hSwitch" class="pwr live" title="Turn tracking on/off — persists across sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.2 L12 12"/><path d="M7.4 6.6 A7 7 0 1 0 16.6 6.6"/></svg><em id="hSwState">LIVE</em></button></div>
   <div class="ros">
     <div class="ro"><span class="k">session</span><span class="v" id="hSess" style="font-size:13px">—</span></div>
     <div class="ro"><span class="k">model</span><span class="v" id="hModel" style="font-size:13px;color:var(--core)">—</span></div>
@@ -1002,7 +1003,8 @@
   function paintSwitch(off){ swEl.classList.toggle("off",!!off); swEl.classList.toggle("live",!off);
     const s=$("hSwState"); if(s)s.textContent=off?"OFF":"LIVE";
     swEl.title=off?"Tracking OFF — click to resume (persists across sessions)":"Tracking LIVE — click to turn off"; }
-  function refreshSwitch(){ fetch("/state").then(r=>r.json()).then(s=>paintSwitch(s.off)).catch(()=>{}); }
+  function refreshSwitch(){ fetch("/state").then(r=>r.json()).then(s=>{ paintSwitch(s.off);
+    const v=$("hVer"); if(v&&s.version&&v.textContent!==" v"+s.version) v.textContent=" v"+s.version; }).catch(()=>{}); }
   swEl.addEventListener("click",()=>{ swEl.style.opacity=".5";
     fetch("/toggle",{method:"POST"}).then(r=>r.json()).then(s=>{paintSwitch(s.off);swEl.style.opacity="";}).catch(()=>{swEl.style.opacity="";}); });
   refreshSwitch(); setInterval(refreshSwitch,3000);   // reflect /activity-tracker toggles too
